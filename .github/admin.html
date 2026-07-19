@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Athletic Club Admin - Attendance Registers</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 30px; background: #f4f6f9; color: #333; }
+        .admin-box { background: white; max-width: 950px; margin: auto; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .controls { margin-bottom: 25px; display: flex; align-items: center; gap: 15px; background: #eef1f4; padding: 15px; border-radius: 8px; }
+        input[type="date"] { padding: 10px; font-size: 16px; border-radius: 6px; border: 1px solid #ccc; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        th { background: #007bff; color: white; font-weight: 600; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        .btn-print { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: 600; }
+        .btn-print:hover { background: #218838; }
+        
+        /* Print Optimization: Hides controls and backgrounds when printing physical registers for coaches */
+        @media print { 
+            .controls, .btn-print, h1, h3 { display: none !important; } 
+            body { padding: 0; background: white; } 
+            .admin-box { box-shadow: none; max-width: 100%; padding: 0; } 
+            th { background: #333 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="admin-box">
+    <h1>Coaches Administration Portal</h1>
+    <h3>Generate Session Attendance Registers</h3>
+    
+    <div class="controls">
+        <label for="datePicker"><strong>Select Operational Date:</strong></label>
+        <input type="date" id="datePicker" onchange="pullRegisterForDate()">
+        <button class="btn-print" style="margin-left: auto;" onclick="window.print()">Print Official Sheet</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Athlete Name</th>
+                <th>Age</th>
+                <th>Gender</th>
+                <th>Class Group</th>
+                <th>Ability Level</th>
+                <th>Emergency Contact (Parent Email)</th>
+            </tr>
+        </thead>
+        <tbody id="registerTarget">
+            <tr><td colspan="6" style="text-align: center; color: #888;">Select a training date above to load the register entries...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+    // Automatically routes to your live Azure API
+    const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? 'http://localhost:8000/api' 
+        : 'https://YOUR-AZURE-APP-SERVICE-NAME.azurewebsites.net/api';
+
+    async function pullRegisterForDate() {
+        const targetDate = document.getElementById('datePicker').value;
+        if (!targetDate) return;
+
+        const tbody = document.getElementById('registerTarget');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Querying cloud registers...</td></tr>';
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/register/${targetDate}`);
+            const data = await response.json();
+
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #dc3545; font-weight: bold;">No child profiles are registered for this specific date.</td></tr>';
+                return;
+            }
+
+            data.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${student.name}</strong></td>
+                    <td>${student.age} yrs</td>
+                    <td>${student.gender}</td>
+                    <td>${student.group}</td>
+                    <td>${student.ability}</td>
+                    <td><a href="mailto:${student.parent_contact}">${student.parent_contact}</a></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (error) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Critical backend failure processing the data stream.</td></tr>';
+        }
+    }
+</script>
+</body>
+</html>
